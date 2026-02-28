@@ -3,141 +3,148 @@ ml/recommender.py
 -----------------
 Motor de recomendaciones de Melodix.
 
-NOTA: Los endpoints sp.recommendations() y sp.audio_features() de Spotify
-fueron DEPRECADOS en noviembre 2024 para apps nuevas. Este motor usa
-únicamente endpoints disponibles:
-  - sp.artist_related_artists()  -> artistas similares a los favoritos
-  - sp.artist_top_tracks()       -> top canciones de esos artistas
+Usa sp.search() por géneros — el único endpoint no deprecado
+que permite descubrir música nueva para el usuario.
 """
 
 import spotipy
 
 
-# ─────────────────────────────────────────────────────────────
-# MOTOR PRINCIPAL — sin endpoints deprecados
-# ─────────────────────────────────────────────────────────────
-
-def get_recommendations_from_related_artists(
+def get_recommendations_by_genre_search(
     sp: spotipy.Spotify,
     top_artists: list,
     top_tracks: list,
     limit: int = 20,
 ) -> list:
     """
-    Genera recomendaciones buscando artistas relacionados a los favoritos
-    del usuario y extrayendo sus canciones más populares.
+    Descubre canciones nuevas buscando por los géneros favoritos del usuario.
+    Usa sp.search() que no está deprecado.
 
-    No usa sp.recommendations() ni sp.audio_features() (deprecados).
-
-    Returns:
-        Lista de dicts con info de la canción + explanation
+    Algoritmo:
+      1. Extrae los géneros de los top artists del usuario
+      2. Busca tracks por cada género en Spotify
+      3. Filtra canciones que el usuario ya conoce
+      4. Devuelve las más populares con explicación del porqué
     """
-    if not top_artists:
-        return []
+    # IDs y nombres que el usuario ya conoce
+    known_track_ids   = {t["id"] for t in top_tracks  if t.get("id")}
+    known_artist_ids  = {a["id"] for a in top_artists  if a.get("id")}
+    known_artist_names = [a["name"] for a in top_artists[:2] if a.get("name")]
 
-    # IDs de canciones que el usuario ya conoce (para no recomendar)
-    known_track_ids = {t["id"] for t in top_tracks if t.get("id")}
+    # Extraer géneros del usuario
+    genre_count: dict[str, int] = {}
+    for artist in top_artists:
+        for genre in artist.get("genres", []):
+            genre_count[genre] = genre_count.get(genre, 0) + 1
 
-    # Artistas que ya conoce (para no recomendar canciones de ellos)
-    known_artist_ids = {a["id"] for a in top_artists if a.get("id")}
-    known_artist_names = {a["name"] for a in top_artists if a.get("name")}
+    top_genres = sorted(genre_count, key=genre_count.get, reverse=True)[:5]
 
-    results = []
-    seen_track_ids = set()
+    results  = []
+    seen_ids = set()
 
-    # Para cada artista favorito (máx 3 para no saturar la API)
-    for seed_artist in top_artists[:3]:
-        seed_id   = seed_artist.get("id")
-        seed_name = seed_artist.get("name", "")
-        if not seed_id:
-            continue
-
+    # Buscar por cada género
+    for genre in top_genres:
+        if len(results) >= limit:
+            break
         try:
-            # Obtener artistas relacionados
-            related_data = sp.artist_related_artists(seed_id)
-            related_artists = related_data.get("artists", [])
+            search_data = sp.search(
+                q=f'genre:"{genre}"',
+                type="track",
+                limit=10,
+            )
+            tracks = search_data.get("tracks", {}).get("items", [])
 
-            # Tomamos los 3 artistas relacionados más populares
-            # que el usuario no siga ya
-            new_artists = [
-                a for a in related_artists
-                if a["id"] not in known_artist_ids
-            ][:3]
-
-            for artist in new_artists:
-                artist_id   = artist["id"]
-                artist_name = artist["name"]
-
-                try:
-                    # Top canciones del artista relacionado
-                    top_data = sp.artist_top_tracks(artist_id, country="ES")
-                    tracks   = top_data.get("tracks", [])
-
-                    for track in tracks[:3]:  # Máx 3 canciones por artista
-                        track_id = track.get("id")
-                        if not track_id or track_id in seen_track_ids:
-                            continue
-                        if track_id in known_track_ids:
-                            continue
-
-                        seen_track_ids.add(track_id)
-                        album   = track.get("album", {})
-                        artists = track.get("artists", [{}])
-
-                        results.append({
-                            "id": track_id,
-                            "name": track.get("name", ""),
-                            "artist": artists[0].get("name", artist_name) if artists else artist_name,
-                            "album": album.get("name", ""),
-                            "image": album["images"][0]["url"] if album.get("images") else None,
-                            "preview_url": track.get("preview_url"),
-                            "spotify_url": track.get("external_urls", {}).get("spotify"),
-                            "popularity": track.get("popularity", 0),
-                            "score": artist.get("popularity", 50) / 100,
-                            "explanation": f"Similar a {seed_name}",
-                        })
-
-                        if len(results) >= limit:
-                            break
-
-                except Exception:
-                    continue
-
+            for track in tracks:
                 if len(results) >= limit:
                     break
+
+                track_id = track.get("id")
+                if not track_id or track_id in seen_ids:
+                    continue
+                if track_id in known_track_ids:
+                    continue
+
+                # Preferimos artistas que el usuario no conoce ya
+                artists = track.get("artists", [{}])
+                artist_id = artists[0].get("id") if artists else None
+
+                seen_ids.add(track_id)
+                album = track.get("album", {})
+
+                results.append({
+                    "id": track_id,
+                    "name": track.get("name", ""),
+                    "artist": artists[0].get("name", "") if artists else "",
+                    "album": album.get("name", ""),
+                    "image": album["images"][0]["url"] if album.get("images") else None,
+                    "preview_url": track.get("preview_url"),
+                    "spotify_url": track.get("external_urls", {}).get("spotify"),
+                    "popularity": track.get("popularity", 0),
+                    "score": track.get("popularity", 0) / 100,
+                    "explanation": f"Género: {genre}",
+                })
 
         except Exception:
             continue
 
-        if len(results) >= limit:
-            break
+    # Si no encontramos nada por géneros, buscamos por nombre de artista
+    if not results and known_artist_names:
+        for artist_name in known_artist_names[:2]:
+            try:
+                search_data = sp.search(
+                    q=f'artist:"{artist_name}"',
+                    type="track",
+                    limit=10,
+                )
+                tracks = search_data.get("tracks", {}).get("items", [])
+                for track in tracks:
+                    track_id = track.get("id")
+                    if not track_id or track_id in seen_ids or track_id in known_track_ids:
+                        continue
+                    seen_ids.add(track_id)
+                    album = track.get("album", {})
+                    artists = track.get("artists", [{}])
+                    results.append({
+                        "id": track_id,
+                        "name": track.get("name", ""),
+                        "artist": artists[0].get("name", "") if artists else "",
+                        "album": album.get("name", ""),
+                        "image": album["images"][0]["url"] if album.get("images") else None,
+                        "preview_url": track.get("preview_url"),
+                        "spotify_url": track.get("external_urls", {}).get("spotify"),
+                        "popularity": track.get("popularity", 0),
+                        "score": track.get("popularity", 0) / 100,
+                        "explanation": f"Más de {artist_name}",
+                    })
+                    if len(results) >= limit:
+                        break
+            except Exception:
+                continue
 
-    # Ordenar por popularidad descendente
+    # Ordenar por popularidad y devolver
     results.sort(key=lambda x: x.get("popularity", 0), reverse=True)
     return results[:limit]
 
 
 def describe_profile(top_artists: list, top_tracks: list) -> str:
     """
-    Genera una descripción del perfil musical del usuario
-    basada en sus artistas y géneros favoritos.
+    Genera una descripción del perfil musical basada en artistas y géneros.
     """
     if not top_artists:
         return "Perfil musical en construcción"
 
-    # Recopilar géneros
     genre_count: dict[str, int] = {}
     for artist in top_artists:
         for genre in artist.get("genres", []):
             genre_count[genre] = genre_count.get(genre, 0) + 1
 
-    top_genres = sorted(genre_count, key=genre_count.get, reverse=True)[:3]
-    artist_names = [a["name"] for a in top_artists[:2] if a.get("name")]
+    top_genres    = sorted(genre_count, key=genre_count.get, reverse=True)[:2]
+    artist_names  = [a["name"] for a in top_artists[:2] if a.get("name")]
 
     parts = []
     if artist_names:
         parts.append(f"Fan de {', '.join(artist_names)}")
     if top_genres:
-        parts.append(" · ".join(top_genres[:2]))
+        parts.append(" · ".join(top_genres))
 
     return " · ".join(parts) if parts else "Perfil musical variado"

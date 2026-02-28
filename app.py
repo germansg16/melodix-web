@@ -31,7 +31,7 @@ from spotify.client import (
     get_genre_distribution,
 )
 from ml.recommender import (
-    get_recommendations_from_related_artists,
+    get_recommendations_by_genre_search,
     describe_profile,
 )
 
@@ -289,8 +289,8 @@ def api_recommendations():
         # 2. Generar descripción del perfil
         profile_desc = describe_profile(top_artists, top_tracks)
 
-        # 3. Obtener recomendaciones via artistas relacionados
-        recommendations = get_recommendations_from_related_artists(
+        # 3. Obtener recomendaciones via búsqueda por géneros
+        recommendations = get_recommendations_by_genre_search(
             sp,
             top_artists=top_artists,
             top_tracks=top_tracks,
