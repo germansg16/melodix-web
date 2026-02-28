@@ -1,288 +1,143 @@
 """
 ml/recommender.py
 -----------------
-Motor de recomendaciones personalizadas de Melodix.
+Motor de recomendaciones de Melodix.
 
-Flujo:
-  1. Obtiene las audio features de las top tracks del usuario
-  2. Construye un "perfil de audio" promediando esas features
-  3. Llama a sp.recommendations() usando sus top artists/tracks/genres
-  4. Puntúa y explica cada recomendación comparándola con el perfil
+NOTA: Los endpoints sp.recommendations() y sp.audio_features() de Spotify
+fueron DEPRECADOS en noviembre 2024 para apps nuevas. Este motor usa
+únicamente endpoints disponibles:
+  - sp.artist_related_artists()  -> artistas similares a los favoritos
+  - sp.artist_top_tracks()       -> top canciones de esos artistas
 """
 
 import spotipy
 
 
 # ─────────────────────────────────────────────────────────────
-# AUDIO FEATURES
+# MOTOR PRINCIPAL — sin endpoints deprecados
 # ─────────────────────────────────────────────────────────────
 
-FEATURE_KEYS = [
-    "danceability",   # 0-1: cuánto está hecha para bailar
-    "energy",         # 0-1: intensidad y actividad
-    "valence",        # 0-1: positividad musical (alto = feliz)
-    "acousticness",   # 0-1: cuánto es acústica
-    "instrumentalness",  # 0-1: sin voz
-    "speechiness",    # 0-1: palabras habladas
-    "tempo",          # BPM
-    "loudness",       # dB (negativo)
-]
-
-
-def get_audio_features(sp: spotipy.Spotify, track_ids: list) -> list:
-    """
-    Obtiene las audio features de una lista de track IDs.
-    Spotify acepta hasta 100 IDs por llamada.
-    Devuelve solo los features válidos (ignora None).
-    """
-    if not track_ids:
-        return []
-
-    # Limitar a 100 por llamada
-    track_ids = list(set(track_ids))[:100]
-
-    try:
-        features = sp.audio_features(track_ids)
-        return [f for f in features if f is not None]
-    except Exception:
-        return []
-
-
-# ─────────────────────────────────────────────────────────────
-# PERFIL DEL USUARIO
-# ─────────────────────────────────────────────────────────────
-
-def build_user_profile(audio_features: list) -> dict:
-    """
-    Construye el perfil de audio del usuario promediando
-    las features de sus canciones favoritas.
-
-    Returns:
-        dict con el promedio de cada feature, o {} si no hay datos.
-    """
-    if not audio_features:
-        return {}
-
-    profile = {}
-    for key in FEATURE_KEYS:
-        values = [f[key] for f in audio_features if f.get(key) is not None]
-        if values:
-            profile[key] = round(sum(values) / len(values), 4)
-
-    return profile
-
-
-def describe_profile(profile: dict) -> str:
-    """
-    Genera una descripción textual del perfil musical del usuario.
-    Útil para mostrar en la UI.
-    """
-    if not profile:
-        return "Perfil musical no disponible"
-
-    parts = []
-
-    energy = profile.get("energy", 0)
-    if energy > 0.75:
-        parts.append("música muy enérgica")
-    elif energy > 0.45:
-        parts.append("energía media")
-    else:
-        parts.append("música tranquila")
-
-    valence = profile.get("valence", 0)
-    if valence > 0.65:
-        parts.append("ambiente positivo")
-    elif valence < 0.35:
-        parts.append("tono oscuro/melancólico")
-
-    danceability = profile.get("danceability", 0)
-    if danceability > 0.7:
-        parts.append("muy bailable")
-
-    acousticness = profile.get("acousticness", 0)
-    if acousticness > 0.6:
-        parts.append("sonido acústico")
-
-    tempo = profile.get("tempo", 0)
-    if tempo > 140:
-        parts.append(f"ritmo rápido ({int(tempo)} BPM)")
-    elif tempo > 100:
-        parts.append(f"ritmo medio ({int(tempo)} BPM)")
-    else:
-        parts.append(f"ritmo lento ({int(tempo)} BPM)")
-
-    return " · ".join(parts) if parts else "Perfil musical variado"
-
-
-# ─────────────────────────────────────────────────────────────
-# MOTOR DE RECOMENDACIONES
-# ─────────────────────────────────────────────────────────────
-
-def get_recommendations(
+def get_recommendations_from_related_artists(
     sp: spotipy.Spotify,
     top_artists: list,
     top_tracks: list,
-    top_genres: list,
     limit: int = 20,
 ) -> list:
     """
-    Llama a la Spotify Recommendations API usando como semillas
-    los top artists, tracks y genres del usuario.
+    Genera recomendaciones buscando artistas relacionados a los favoritos
+    del usuario y extrayendo sus canciones más populares.
 
-    Spotify permite máximo 5 semillas en total.
+    No usa sp.recommendations() ni sp.audio_features() (deprecados).
 
     Returns:
-        Lista de tracks recomendados (formato raw de Spotify).
+        Lista de dicts con info de la canción + explanation
     """
-    # Preparamos semillas (máx 5 en total)
-    seed_artists = [a["id"] for a in top_artists[:2] if a.get("id")]
-    seed_tracks  = [t["id"] for t in top_tracks[:2]  if t.get("id")]
-    seed_genres  = top_genres[:1]  # Solo 1 género para no superar el límite
-
-    # Si no hay suficientes semillas, lo que haya
-    if not seed_artists and not seed_tracks and not seed_genres:
+    if not top_artists:
         return []
 
-    try:
-        results = sp.recommendations(
-            seed_artists=seed_artists,
-            seed_tracks=seed_tracks,
-            seed_genres=seed_genres,
-            limit=limit,
-        )
-        return results.get("tracks", [])
-    except Exception as e:
-        # Si los géneros no son válidos para la API, reintentamos sin géneros
-        try:
-            results = sp.recommendations(
-                seed_artists=seed_artists,
-                seed_tracks=seed_tracks,
-                seed_genres=[],
-                limit=limit,
-            )
-            return results.get("tracks", [])
-        except Exception:
-            return []
+    # IDs de canciones que el usuario ya conoce (para no recomendar)
+    known_track_ids = {t["id"] for t in top_tracks if t.get("id")}
 
-
-# ─────────────────────────────────────────────────────────────
-# PUNTUACIÓN Y EXPLICACIÓN
-# ─────────────────────────────────────────────────────────────
-
-def _cosine_similarity(a: dict, b: dict) -> float:
-    """Similitud coseno entre dos perfiles de features (sin tempo/loudness)."""
-    keys = ["danceability", "energy", "valence", "acousticness", "instrumentalness"]
-    dot, mag_a, mag_b = 0.0, 0.0, 0.0
-    for k in keys:
-        va = a.get(k, 0)
-        vb = b.get(k, 0)
-        dot   += va * vb
-        mag_a += va ** 2
-        mag_b += vb ** 2
-    if mag_a == 0 or mag_b == 0:
-        return 0.0
-    return round(dot / ((mag_a ** 0.5) * (mag_b ** 0.5)), 4)
-
-
-def _generate_explanation(track_features: dict, user_profile: dict, top_artist_names: list) -> str:
-    """
-    Genera una frase corta explicando por qué se recomienda la canción.
-    Compara las features de la canción con el perfil del usuario.
-    """
-    if not track_features or not user_profile:
-        return "Basado en tus gustos"
-
-    parts = []
-
-    # Energía
-    te = track_features.get("energy", 0)
-    ue = user_profile.get("energy", 0)
-    if abs(te - ue) < 0.15:
-        if te > 0.7:
-            parts.append("Alta energía como tus favoritas")
-        elif te < 0.4:
-            parts.append("Tan tranquila como tus favoritas")
-
-    # Bailabilidad
-    td = track_features.get("danceability", 0)
-    ud = user_profile.get("danceability", 0)
-    if td > 0.7 and ud > 0.65:
-        parts.append("Muy bailable")
-
-    # Positividad / mood
-    tv = track_features.get("valence", 0)
-    uv = user_profile.get("valence", 0)
-    if abs(tv - uv) < 0.2:
-        if tv > 0.65:
-            parts.append("Ambiente positivo")
-        elif tv < 0.35:
-            parts.append("Tono oscuro como tu música")
-
-    # Acústica
-    ta = track_features.get("acousticness", 0)
-    ua = user_profile.get("acousticness", 0)
-    if ta > 0.6 and ua > 0.5:
-        parts.append("Sonido acústico")
-
-    # Artista en común
-    if top_artist_names:
-        parts.append(f"Basado en {top_artist_names[0]}")
-
-    if not parts:
-        parts.append("Basado en tus gustos")
-
-    return " · ".join(parts[:2])  # Máx 2 razones para no saturar
-
-
-def score_and_explain(
-    candidate_tracks: list,
-    candidate_features: list,
-    user_profile: dict,
-    top_artist_names: list,
-) -> list:
-    """
-    Puntúa cada track candidato por similitud con el perfil del usuario,
-    añade una explicación y devuelve la lista ordenada por score.
-
-    Args:
-        candidate_tracks: Lista raw de tracks de Spotify
-        candidate_features: Lista de audio_features de esos tracks
-        user_profile: Perfil del usuario (build_user_profile)
-        top_artist_names: Nombres de los top artistas del usuario
-
-    Returns:
-        Lista de dicts con info de la canción + score + explanation
-    """
-    # Indexar features por track id
-    features_by_id = {f["id"]: f for f in candidate_features if f}
+    # Artistas que ya conoce (para no recomendar canciones de ellos)
+    known_artist_ids = {a["id"] for a in top_artists if a.get("id")}
+    known_artist_names = {a["name"] for a in top_artists if a.get("name")}
 
     results = []
-    for track in candidate_tracks:
-        if not track or not track.get("id"):
+    seen_track_ids = set()
+
+    # Para cada artista favorito (máx 3 para no saturar la API)
+    for seed_artist in top_artists[:3]:
+        seed_id   = seed_artist.get("id")
+        seed_name = seed_artist.get("name", "")
+        if not seed_id:
             continue
 
-        track_id = track["id"]
-        album = track.get("album", {})
-        artists = track.get("artists", [{}])
+        try:
+            # Obtener artistas relacionados
+            related_data = sp.artist_related_artists(seed_id)
+            related_artists = related_data.get("artists", [])
 
-        tf = features_by_id.get(track_id, {})
-        score = _cosine_similarity(tf, user_profile) if tf and user_profile else 0.5
-        explanation = _generate_explanation(tf, user_profile, top_artist_names)
+            # Tomamos los 3 artistas relacionados más populares
+            # que el usuario no siga ya
+            new_artists = [
+                a for a in related_artists
+                if a["id"] not in known_artist_ids
+            ][:3]
 
-        results.append({
-            "id": track_id,
-            "name": track.get("name", ""),
-            "artist": artists[0].get("name", "Desconocido") if artists else "Desconocido",
-            "album": album.get("name", ""),
-            "image": album["images"][0]["url"] if album.get("images") else None,
-            "preview_url": track.get("preview_url"),
-            "spotify_url": track.get("external_urls", {}).get("spotify"),
-            "popularity": track.get("popularity", 0),
-            "score": score,
-            "explanation": explanation,
-        })
+            for artist in new_artists:
+                artist_id   = artist["id"]
+                artist_name = artist["name"]
 
-    # Ordenar por score descendente
-    results.sort(key=lambda x: x["score"], reverse=True)
-    return results
+                try:
+                    # Top canciones del artista relacionado
+                    top_data = sp.artist_top_tracks(artist_id, country="ES")
+                    tracks   = top_data.get("tracks", [])
+
+                    for track in tracks[:3]:  # Máx 3 canciones por artista
+                        track_id = track.get("id")
+                        if not track_id or track_id in seen_track_ids:
+                            continue
+                        if track_id in known_track_ids:
+                            continue
+
+                        seen_track_ids.add(track_id)
+                        album   = track.get("album", {})
+                        artists = track.get("artists", [{}])
+
+                        results.append({
+                            "id": track_id,
+                            "name": track.get("name", ""),
+                            "artist": artists[0].get("name", artist_name) if artists else artist_name,
+                            "album": album.get("name", ""),
+                            "image": album["images"][0]["url"] if album.get("images") else None,
+                            "preview_url": track.get("preview_url"),
+                            "spotify_url": track.get("external_urls", {}).get("spotify"),
+                            "popularity": track.get("popularity", 0),
+                            "score": artist.get("popularity", 50) / 100,
+                            "explanation": f"Similar a {seed_name}",
+                        })
+
+                        if len(results) >= limit:
+                            break
+
+                except Exception:
+                    continue
+
+                if len(results) >= limit:
+                    break
+
+        except Exception:
+            continue
+
+        if len(results) >= limit:
+            break
+
+    # Ordenar por popularidad descendente
+    results.sort(key=lambda x: x.get("popularity", 0), reverse=True)
+    return results[:limit]
+
+
+def describe_profile(top_artists: list, top_tracks: list) -> str:
+    """
+    Genera una descripción del perfil musical del usuario
+    basada en sus artistas y géneros favoritos.
+    """
+    if not top_artists:
+        return "Perfil musical en construcción"
+
+    # Recopilar géneros
+    genre_count: dict[str, int] = {}
+    for artist in top_artists:
+        for genre in artist.get("genres", []):
+            genre_count[genre] = genre_count.get(genre, 0) + 1
+
+    top_genres = sorted(genre_count, key=genre_count.get, reverse=True)[:3]
+    artist_names = [a["name"] for a in top_artists[:2] if a.get("name")]
+
+    parts = []
+    if artist_names:
+        parts.append(f"Fan de {', '.join(artist_names)}")
+    if top_genres:
+        parts.append(" · ".join(top_genres[:2]))
+
+    return " · ".join(parts) if parts else "Perfil musical variado"
