@@ -370,27 +370,88 @@ const sectionObserver = new IntersectionObserver((entries) => {
 sections.forEach(s => sectionObserver.observe(s));
 
 // ─────────────────────────────────────────────────────────────
-// RECOMENDACIONES
+// RECOMENDACIONES — SISTEMA AVANZADO CON MOODS
 // ─────────────────────────────────────────────────────────────
 
-async function loadRecommendations() {
+let activeMood = 'default';
+let activeQuery = '';
+
+async function loadRecommendations(mood = activeMood, query = '') {
     const grid = document.getElementById('recommendationsGrid');
-    grid.innerHTML = '<div class="rec-loading"><div class="loading-spinner" style="width:32px;height:32px"></div><p>Generando recomendaciones...</p></div>';
+    grid.innerHTML = '<div class="rec-loading"><div class="loading-spinner" style="width:32px;height:32px"></div><p>Buscando canciones para ti...</p></div>';
+
+    activeMood = mood;
+    activeQuery = query;
+
+    // Actualizar chip activo
+    document.querySelectorAll('.mood-chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.mood === mood);
+    });
+
     try {
-        const data = await apiFetch('/api/recommendations');
+        let url = `/api/recommendations?mood=${encodeURIComponent(mood)}`;
+        if (query) url += `&query=${encodeURIComponent(query)}`;
+        const data = await apiFetch(url);
         renderRecommendations(data);
     } catch (err) {
         grid.innerHTML = `<p style="color:var(--text-muted);padding:2rem">❌ Error: ${err.message}</p>`;
     }
 }
 
-// Botón de actualizar recomendaciones
+// ── Mood chips ────────────────────────────────────────────────
+document.querySelectorAll('.mood-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+        const mood = chip.dataset.mood;
+        // Limpiar búsqueda al cambiar mood
+        const searchInput = document.getElementById('recSearchInput');
+        if (searchInput) searchInput.value = '';
+        loadRecommendations(mood, '');
+    });
+});
+
+// ── Botón buscar por artista ─────────────────────────────────
+const recSearchArtistBtn = document.getElementById('recSearchArtistBtn');
+if (recSearchArtistBtn) {
+    recSearchArtistBtn.addEventListener('click', () => {
+        const query = document.getElementById('recSearchInput')?.value.trim();
+        if (!query) return;
+        // Quitar activo de chips
+        document.querySelectorAll('.mood-chip').forEach(c => c.classList.remove('active'));
+        loadRecommendations('artista', query);
+    });
+}
+
+// ── Botón búsqueda libre ─────────────────────────────────────
+const recSearchFreeBtn = document.getElementById('recSearchFreeBtn');
+if (recSearchFreeBtn) {
+    recSearchFreeBtn.addEventListener('click', () => {
+        const query = document.getElementById('recSearchInput')?.value.trim();
+        if (!query) return;
+        document.querySelectorAll('.mood-chip').forEach(c => c.classList.remove('active'));
+        loadRecommendations('custom', query);
+    });
+}
+
+// Enter en el input de búsqueda
+const recSearchInput = document.getElementById('recSearchInput');
+if (recSearchInput) {
+    recSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = recSearchInput.value.trim();
+            if (!query) return;
+            document.querySelectorAll('.mood-chip').forEach(c => c.classList.remove('active'));
+            loadRecommendations('custom', query);
+        }
+    });
+}
+
+// ── Botón actualizar ─────────────────────────────────────────
 const refreshBtn = document.getElementById('refreshRecommendations');
 if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
         refreshBtn.disabled = true;
         setTimeout(() => refreshBtn.disabled = false, 5000);
-        loadRecommendations();
+        loadRecommendations(activeMood, activeQuery);
     });
 }
 
