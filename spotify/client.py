@@ -136,6 +136,24 @@ def get_saved_tracks_sample(sp: spotipy.Spotify, limit: int = 50) -> list:
     return tracks
 
 
+def get_audio_features(sp: spotipy.Spotify, track_ids: list) -> list:
+    """
+    Obtiene las audio features de una lista de IDs de canciones.
+    Spotify acepta hasta 100 IDs por llamada.
+
+    Returns:
+        Lista de dicts con features (danceability, energy, valence, etc.)
+    """
+    if not track_ids:
+        return []
+    track_ids = list(set(track_ids))[:100]
+    try:
+        features = sp.audio_features(track_ids)
+        return [f for f in (features or []) if f is not None]
+    except Exception:
+        return []
+
+
 def get_genre_distribution(top_artists: list) -> dict:
     """
     Calcula la distribución de géneros a partir de los artistas favoritos.

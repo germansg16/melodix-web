@@ -218,6 +218,71 @@ function renderStats(profile) {
     document.getElementById('statFollowers').textContent = formatNumber(profile.followers || 0);
 }
 
+function renderRecommendations(data) {
+    const grid = document.getElementById('recommendationsGrid');
+    const subtitle = document.getElementById('profileDescription');
+    grid.innerHTML = '';
+
+    if (data.profile_description) {
+        subtitle.textContent = '🎵 Tu perfil: ' + data.profile_description;
+    }
+
+    if (!data.recommendations || data.recommendations.length === 0) {
+        grid.innerHTML = '<p style="color:var(--text-muted);padding:2rem">No se encontraron recomendaciones. Escucha más música en Spotify y vuelve a intentarlo.</p>';
+        return;
+    }
+
+    data.recommendations.forEach(track => {
+        const card = document.createElement('div');
+        card.className = 'rec-card glass-card';
+
+        const imgHtml = track.image
+            ? `<img src="${track.image}" alt="${track.name}" class="rec-img" loading="lazy" />`
+            : `<div class="rec-img rec-img-placeholder">🎵</div>`;
+
+        const previewBtn = track.preview_url
+            ? `<button class="rec-preview-btn" data-url="${track.preview_url}" title="Previsualizar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+               </button>`
+            : '';
+
+        card.innerHTML = `
+            ${imgHtml}
+            <div class="rec-info">
+                <div class="rec-name">${track.name}</div>
+                <div class="rec-artist">${track.artist}</div>
+                <div class="rec-explanation">${track.explanation}</div>
+            </div>
+            <div class="rec-actions">
+                ${previewBtn}
+                ${track.spotify_url ? `<a href="${track.spotify_url}" target="_blank" class="rec-spotify-btn" title="Abrir en Spotify">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>` : ''}
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+
+    // Preview player: reproduce 30s al hacer clic
+    let currentAudio = null;
+    grid.querySelectorAll('.rec-preview-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const url = btn.dataset.url;
+            if (currentAudio && !currentAudio.paused) {
+                currentAudio.pause();
+                grid.querySelectorAll('.rec-preview-btn').forEach(b => b.classList.remove('playing'));
+                if (currentAudio._url === url) { currentAudio = null; return; }
+            }
+            currentAudio = new Audio(url);
+            currentAudio._url = url;
+            currentAudio.volume = 0.5;
+            currentAudio.play();
+            btn.classList.add('playing');
+            currentAudio.onended = () => btn.classList.remove('playing');
+        });
+    });
+}
+
 // ─────────────────────────────────────────────────────────────
 // CARGA PRINCIPAL DE DATOS
 // ─────────────────────────────────────────────────────────────
@@ -225,7 +290,6 @@ function renderStats(profile) {
 async function loadDashboard(timeRange = 'medium_term') {
     setLoading(true);
     try {
-        // Cargamos todo en paralelo para máxima velocidad
         const [summaryData] = await Promise.all([
             apiFetch(`/api/dashboard/summary`),
         ]);
@@ -238,6 +302,9 @@ async function loadDashboard(timeRange = 'medium_term') {
         renderRecentTracks(summaryData.recent_tracks);
 
         setLoading(false);
+
+        // Recomendaciones en segundo plano (no bloquea el dashboard)
+        loadRecommendations();
     } catch (err) {
         console.error('Error cargando el dashboard:', err);
         document.getElementById('loadingScreen').innerHTML = `
@@ -301,6 +368,31 @@ const sectionObserver = new IntersectionObserver((entries) => {
 }, { rootMargin: '-40% 0px -55% 0px' });
 
 sections.forEach(s => sectionObserver.observe(s));
+
+// ─────────────────────────────────────────────────────────────
+// RECOMENDACIONES
+// ─────────────────────────────────────────────────────────────
+
+async function loadRecommendations() {
+    const grid = document.getElementById('recommendationsGrid');
+    grid.innerHTML = '<div class="rec-loading"><div class="loading-spinner" style="width:32px;height:32px"></div><p>Generando recomendaciones...</p></div>';
+    try {
+        const data = await apiFetch('/api/recommendations');
+        renderRecommendations(data);
+    } catch (err) {
+        grid.innerHTML = `<p style="color:var(--text-muted);padding:2rem">❌ Error: ${err.message}</p>`;
+    }
+}
+
+// Botón de actualizar recomendaciones
+const refreshBtn = document.getElementById('refreshRecommendations');
+if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+        refreshBtn.disabled = true;
+        setTimeout(() => refreshBtn.disabled = false, 5000);
+        loadRecommendations();
+    });
+}
 
 // ─────────────────────────────────────────────────────────────
 // INICIO

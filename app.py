@@ -29,6 +29,14 @@ from spotify.client import (
     get_recently_played,
     get_saved_tracks_sample,
     get_genre_distribution,
+    get_audio_features,
+)
+from ml.recommender import (
+    build_user_profile,
+    get_recommendations,
+    get_audio_features as ml_get_audio_features,
+    score_and_explain,
+    describe_profile,
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -260,6 +268,65 @@ def api_dashboard_summary():
             "recent_tracks": recent,
             "genre_distribution": dict(list(genres.items())[:12]),
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route("/api/recommendations")
+def api_recommendations():
+    """
+    Genera recomendaciones de canciones personalizadas para el usuario.
+    Usa sus top artists/tracks/genres como semillas y puntua los candidatos
+    por similitud con su perfil de audio.
+    """
+    sp = get_current_sp()
+    if not sp:
+        return jsonify({"error": "No autenticado"}), 401
+
+    try:
+        # 1. Obtener datos del usuario
+        top_artists = get_top_artists(sp, time_range="medium_term", limit=5)
+        top_tracks  = get_top_tracks(sp,  time_range="medium_term", limit=5)
+        genres_dist = get_genre_distribution(top_artists)
+        top_genres  = list(genres_dist.keys())[:3]
+
+        # 2. Construir perfil de audio del usuario
+        track_ids    = [t["id"] for t in top_tracks if t.get("id")]
+        user_features = get_audio_features(sp, track_ids)
+        user_profile  = build_user_profile(user_features)
+        profile_desc  = describe_profile(user_profile)
+
+        # 3. Obtener candidatos de la Spotify Recommendations API
+        candidates = get_recommendations(
+            sp,
+            top_artists=top_artists,
+            top_tracks=top_tracks,
+            top_genres=top_genres,
+            limit=20,
+        )
+
+        if not candidates:
+            return jsonify({"recommendations": [], "user_profile": user_profile, "profile_description": profile_desc})
+
+        # 4. Obtener features de los candidatos y puntuar
+        candidate_ids      = [t["id"] for t in candidates if t and t.get("id")]
+        candidate_features = get_audio_features(sp, candidate_ids)
+        top_artist_names   = [a["name"] for a in top_artists[:2]]
+
+        scored = score_and_explain(
+            candidates,
+            candidate_features,
+            user_profile,
+            top_artist_names,
+        )
+
+        return jsonify({
+            "recommendations": scored[:12],  # Top 12 recomendaciones
+            "user_profile": user_profile,
+            "profile_description": profile_desc,
+        })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
