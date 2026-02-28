@@ -1,0 +1,25 @@
+# Credenciales y secretos - NUNCA subir a Git
+.env
+*.spotifycache
+*.cache
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+env/
+
+# Modelos entrenados (pueden ser grandes)
+ml/models/*.pkl
+
+# Datasets con datos personales
+*.csv
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

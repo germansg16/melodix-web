@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SpotifyIA — Mi Dashboard</title>
+    <meta name="description" content="Tu dashboard musical personalizado con análisis de IA." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+    <!-- Chart.js para gráficas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+
+<body class="dashboard-body">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <span class="nav-logo">♪</span>
+            <span class="nav-title">SpotifyIA</span>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#overview" class="sidebar-link active" data-section="overview">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                </svg>
+                Resumen
+            </a>
+            <a href="#top-artists" class="sidebar-link" data-section="top-artists">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Artistas
+            </a>
+            <a href="#top-tracks" class="sidebar-link" data-section="top-tracks">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                </svg>
+                Canciones
+            </a>
+            <a href="#genres" class="sidebar-link" data-section="genres">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10" />
+                    <line x1="12" y1="20" x2="12" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+                Géneros
+            </a>
+            <a href="#recent" class="sidebar-link" data-section="recent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                </svg>
+                Historial
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="/logout" class="btn-logout">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Cerrar sesión
+            </a>
+        </div>
+    </aside>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="dashboard-main">
+
+        <!-- TOPBAR -->
+        <header class="topbar">
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+            </button>
+            <div class="topbar-info">
+                <span class="topbar-greeting">Cargando tu perfil...</span>
+            </div>
+
+            <!-- SELECTOR DE PERÍODO -->
+            <div class="time-selector">
+                <button class="time-btn active" data-range="short_term">4 semanas</button>
+                <button class="time-btn" data-range="medium_term">6 meses</button>
+                <button class="time-btn" data-range="long_term">Siempre</button>
+            </div>
+
+            <div class="topbar-user">
+                <img src="" alt="Avatar" class="user-avatar" id="userAvatar" />
+            </div>
+        </header>
+
+        <!-- LOADING STATE -->
+        <div class="loading-screen" id="loadingScreen">
+            <div class="loading-spinner"></div>
+            <p>Conectando con Spotify...</p>
+        </div>
+
+        <!-- DASHBOARD GRID (oculto hasta cargar) -->
+        <div class="dashboard-content" id="dashboardContent" style="display:none">
+
+            <!-- SECCIÓN: OVERVIEW -->
+            <section id="overview" class="dash-section">
+                <h2 class="dash-section-title">Tu Resumen Musical</h2>
+
+                <!-- PROFILE CARD + STATS -->
+                <div class="overview-grid">
+                    <div class="profile-card glass-card">
+                        <img src="" alt="Foto de perfil" class="profile-avatar" id="profileAvatar" />
+                        <div class="profile-info">
+                            <h3 class="profile-name" id="profileName">—</h3>
+                            <p class="profile-meta" id="profileMeta">—</p>
+                            <div class="profile-badges">
+                                <span class="badge" id="profilePlan">—</span>
+                                <span class="badge" id="profileCountry">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-cards">
+                        <div class="stat-card glass-card">
+                            <div class="stat-card-icon">🎵</div>
+                            <div class="stat-card-value" id="statTopArtist">—</div>
+                            <div class="stat-card-label">Artista #1</div>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <div class="stat-card-icon">🎤</div>
+                            <div class="stat-card-value" id="statTopTrack">—</div>
+                            <div class="stat-card-label">Canción #1</div>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <div class="stat-card-icon">🎸</div>
+                            <div class="stat-card-value" id="statTopGenre">—</div>
+                            <div class="stat-card-label">Género favorito</div>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <div class="stat-card-icon">👥</div>
+                            <div class="stat-card-value" id="statFollowers">—</div>
+                            <div class="stat-card-label">Seguidores Spotify</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: TOP ARTISTS -->
+            <section id="top-artists" class="dash-section">
+                <h2 class="dash-section-title">Tus Artistas Favoritos</h2>
+                <div class="artists-grid" id="artistsGrid">
+                    <!-- Se rellena con JS -->
+                </div>
+            </section>
+
+            <!-- SECCIÓN: TOP TRACKS -->
+            <section id="top-tracks" class="dash-section">
+                <h2 class="dash-section-title">Tus Canciones Favoritas</h2>
+                <div class="tracks-list" id="tracksList">
+                    <!-- Se rellena con JS -->
+                </div>
+            </section>
+
+            <!-- SECCIÓN: GÉNEROS -->
+            <section id="genres" class="dash-section">
+                <h2 class="dash-section-title">Distribución de Géneros</h2>
+                <div class="genres-layout">
+                    <div class="chart-container glass-card">
+                        <canvas id="genreChart"></canvas>
+                    </div>
+                    <div class="genres-list" id="genresList">
+                        <!-- Se rellena con JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: HISTORIAL RECIENTE -->
+            <section id="recent" class="dash-section">
+                <h2 class="dash-section-title">Escuchado Recientemente</h2>
+                <div class="recent-list" id="recentList">
+                    <!-- Se rellena con JS -->
+                </div>
+            </section>
+
+        </div><!-- /dashboard-content -->
+    </main>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+
+</html>
