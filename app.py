@@ -1,7 +1,7 @@
 """
 app.py
 ------
-Servidor Flask principal de SpotifyIA Web.
+Servidor Flask principal de Melodix.
 Gestiona la autenticación OAuth con Spotify y expone los endpoints
 de la API para el frontend.
 
@@ -38,7 +38,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-cambiar-en-produccion")
-app.config["SESSION_COOKIE_NAME"] = "spotifyia_session"
+app.config["SESSION_COOKIE_NAME"] = "melodix_session"
 
 PORT = int(os.getenv("FLASK_PORT", 8888))
 
@@ -269,7 +269,7 @@ def api_dashboard_summary():
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print(f"\n{'='*50}")
-    print(f"  🎵 SpotifyIA Web Server")
+    print(f"  🎵 Melodix Web Server")
     print(f"  Servidor corriendo en: http://127.0.0.1:{PORT}")
     print(f"  Presiona Ctrl+C para detener")
     print(f"{'='*50}\n")

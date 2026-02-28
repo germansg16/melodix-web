@@ -1,4 +1,4 @@
-# SpotifyIA Web 🎵
+# Melodix 🎵
 
 Una aplicación web completa que conecta con tu cuenta de Spotify, analiza tus datos musicales con IA y te recomienda canciones con explicaciones transparentes (XAI + AHP).
 
@@ -24,7 +24,7 @@ http://127.0.0.1:8888
 
 ## 📁 Estructura del proyecto
 ```
-spotifyIA-web/
+melodix-web/
 ├── app.py              # Servidor Flask principal
 ├── .env                # Credenciales (no subir a Git)
 ├── requirements.txt    # Dependencias Python
