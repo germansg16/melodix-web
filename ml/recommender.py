@@ -212,6 +212,7 @@ def get_para_ti(
     top_artists: list,
     top_tracks: list,
     recent_tracks: list,
+    excluded_ids: set = None,
     limit: int = 20,
 ) -> tuple[list, dict, str]:
     """
@@ -222,6 +223,8 @@ def get_para_ti(
         (recommendations_list, audio_profile_dict, profile_description_str)
     """
     known_ids = _known_track_ids(top_tracks, recent_tracks)
+    if excluded_ids:
+        known_ids.update(excluded_ids)
     seen_ids  = set()
     results   = []
 
@@ -306,6 +309,7 @@ def get_recientes(
     top_artists: list,
     top_tracks: list,
     recent_tracks: list,
+    excluded_ids: set = None,
     limit: int = 20,
 ) -> tuple[list, str]:
     """
@@ -319,6 +323,8 @@ def get_recientes(
       4. Si hay un "cambio de estilo" reciente, mezcla ambos
     """
     known_ids = _known_track_ids(top_tracks, recent_tracks)
+    if excluded_ids:
+        known_ids.update(excluded_ids)
     seen_ids  = set()
     results   = []
 
@@ -429,23 +435,39 @@ def get_custom_search(
     sp: spotipy.Spotify,
     query: str,
     mode: str = "libre",  # "artista" | "libre"
+    excluded_ids: set = None,
     limit: int = 20,
 ) -> list:
     seen = set()
     results = []
+    # Offset escalonado: incrementamos con cada llamada para no repetir
+    # Usamos offset aleatorio simple — suficiente para variar resultados
+    offset = random.randint(0, 40)
     try:
         q = f'artist:"{query}"' if mode == "artista" else query
-        known = set()  # En búsqueda libre no excluimos nada
-        res = sp.search(q=q, type="track", limit=limit)
+        known = excluded_ids or set()
+        res = sp.search(q=q, type="track", limit=limit + 10, offset=offset)
         for t in res.get("tracks", {}).get("items", []):
             tid = t.get("id")
-            if not tid or tid in seen:
+            if not tid or tid in seen or tid in known:
                 continue
             seen.add(tid)
             label = f"De {query}" if mode == "artista" else f'Búsqueda: "{query}"'
             results.append(_format_track(t, label))
     except Exception:
-        pass
+        # Si el offset es muy alto y no hay resultados, reintentamos sin offset
+        try:
+            q = f'artist:"{query}"' if mode == "artista" else query
+            res = sp.search(q=q, type="track", limit=limit)
+            for t in res.get("tracks", {}).get("items", []):
+                tid = t.get("id")
+                if not tid or tid in seen:
+                    continue
+                seen.add(tid)
+                label = f"De {query}" if mode == "artista" else f'Búsqueda: "{query}"'
+                results.append(_format_track(t, label))
+        except Exception:
+            pass
     return results[:limit]
 
 

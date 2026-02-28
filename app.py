@@ -36,6 +36,13 @@ from ml.recommender import (
     get_custom_search,
     describe_profile,
 )
+from ml.exclusions import (
+    get_exclusions,
+    add_exclusion,
+    remove_exclusion,
+    get_exclusion_list,
+)
+
 
 # ─────────────────────────────────────────────────────────────
 # CONFIGURACIÓN
@@ -62,7 +69,7 @@ def get_current_sp():
     if not token_info:
         return None
 
-    auth_manager = get_auth_manager()
+    auth_manager = get_auth_manager(token_info)
     token_info = refresh_token_if_needed(auth_manager, token_info)
     session["token_info"] = token_info  # Guardamos el token actualizado
 
@@ -284,6 +291,10 @@ def api_recommendations():
     query = request.args.get("query", "").strip()
 
     try:
+        user_profile  = get_user_profile(sp)
+        user_id       = user_profile.get("id", "default")
+        excluded_ids  = get_exclusions(user_id)
+
         top_artists   = get_top_artists(sp, time_range="medium_term", limit=10)
         top_tracks    = get_top_tracks(sp,  time_range="medium_term", limit=20)
         recent_tracks = get_recently_played(sp, limit=50)
@@ -293,25 +304,25 @@ def api_recommendations():
 
         if mode == "para_ti":
             recs, audio_profile, audio_desc = get_para_ti(
-                sp, top_artists, top_tracks, recent_tracks, limit=20
+                sp, top_artists, top_tracks, recent_tracks, excluded_ids=excluded_ids, limit=20
             )
             profile_desc = describe_profile(top_artists, top_tracks, audio_desc)
             context_desc = "Explorando tu universo musical"
 
         elif mode == "recientes":
             recs, context_desc = get_recientes(
-                sp, top_artists, top_tracks, recent_tracks, limit=20
+                sp, top_artists, top_tracks, recent_tracks, excluded_ids=excluded_ids, limit=20
             )
             profile_desc = describe_profile(top_artists, top_tracks)
 
         elif mode in ("artista", "custom"):
-            recs = get_custom_search(sp, query, mode=mode, limit=20)
+            recs = get_custom_search(sp, query, mode=mode, excluded_ids=excluded_ids, limit=20)
             profile_desc = describe_profile(top_artists, top_tracks)
             context_desc = f'Búsqueda: "{query}"' if mode == "custom" else f"Artista: {query}"
 
         else:
             recs, audio_profile, audio_desc = get_para_ti(
-                sp, top_artists, top_tracks, recent_tracks, limit=20
+                sp, top_artists, top_tracks, recent_tracks, excluded_ids=excluded_ids, limit=20
             )
             profile_desc = describe_profile(top_artists, top_tracks, audio_desc)
             context_desc = "Explorando tu universo musical"
@@ -323,9 +334,60 @@ def api_recommendations():
             "mode": mode,
         })
 
+
     except Exception as e:
         import traceback
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+
+@app.route("/api/recommendations/exclude", methods=["POST", "GET"])
+def api_exclude_track():
+    """
+    POST: Añade un track a las exclusiones. Requiere JSON {id, name, artist}
+    GET:  Devuelve la lista de exclusiones del usuario actual.
+    """
+    sp = get_current_sp()
+    if not sp:
+        return jsonify({"error": "No autenticado"}), 401
+
+    try:
+        user_id = get_user_profile(sp).get("id", "default")
+
+        if request.method == "POST":
+            data = request.json or {}
+            track_id = data.get("id")
+            if not track_id:
+                return jsonify({"error": "Falta el ID del track"}), 400
+
+            add_exclusion(
+                user_id=user_id,
+                track_id=track_id,
+                track_name=data.get("name", ""),
+                artist=data.get("artist", "")
+            )
+            return jsonify({"success": True})
+
+        else:
+            # GET devulelve la lista completa
+            return jsonify({"exclusions": get_exclusion_list(user_id)})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/recommendations/exclude/<track_id>", methods=["DELETE"])
+def api_remove_exclusion(track_id):
+    """Elimina un track de las exclusiones del usuario."""
+    sp = get_current_sp()
+    if not sp:
+        return jsonify({"error": "No autenticado"}), 401
+
+    try:
+        user_id = get_user_profile(sp).get("id", "default")
+        remove_exclusion(user_id, track_id)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 

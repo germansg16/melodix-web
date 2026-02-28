@@ -23,17 +23,20 @@ SCOPE = " ".join([
 ])
 
 
-def get_auth_manager(cache_path: str = None) -> SpotifyOAuth:
+from spotipy.cache_handler import MemoryCacheHandler
+
+def get_auth_manager(token_info: dict = None) -> SpotifyOAuth:
     """
     Crea y devuelve un gestor de autenticación OAuth de Spotify.
-    Si se proporciona cache_path, se guarda el token en ese archivo.
+    Usa MemoryCacheHandler para no guardar los tokens en el disco (archivo .cache global),
+    evitando que distintos usuarios de la web mezclen sus sesiones.
     """
     return SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
         redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI"),
         scope=SCOPE,
-        cache_path=cache_path,
+        cache_handler=MemoryCacheHandler(token_info=token_info),
         open_browser=False,
         show_dialog=True,  # Siempre pide login (para multi-usuario)
     )

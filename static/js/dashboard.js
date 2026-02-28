@@ -246,8 +246,17 @@ function renderRecommendations(data) {
                </button>`
             : '';
 
+        const excludeBtn = `
+            <button class="rec-exclude-btn" data-id="${track.id}" data-name="${track.name}" data-artist="${track.artist}" title="No me gusta (excluir)">
+                👎
+            </button>
+        `;
+
         card.innerHTML = `
-            ${imgHtml}
+            <div style="position: relative;">
+                ${imgHtml}
+                ${excludeBtn}
+            </div>
             <div class="rec-info">
                 <div class="rec-name">${track.name}</div>
                 <div class="rec-artist">${track.artist}</div>
@@ -262,6 +271,35 @@ function renderRecommendations(data) {
         `;
         grid.appendChild(card);
     });
+
+    // Event listeners para los botones de excluir
+    grid.querySelectorAll('.rec-exclude-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const trackId = btn.dataset.id;
+            const trackName = btn.dataset.name;
+            const artist = btn.dataset.artist;
+
+            // Animación de salida
+            const card = btn.closest('.rec-card');
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.9)';
+
+            try {
+                await fetch('/api/recommendations/exclude', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: trackId, name: trackName, artist: artist })
+                });
+                setTimeout(() => card.remove(), 300); // Dar tiempo a la transición CSS
+            } catch (err) {
+                console.error("Error al excluir:", err);
+                card.style.opacity = '1';
+                card.style.transform = 'scale(1)';
+            }
+        });
+    });
+
 
     // Preview player: reproduce 30s al hacer clic
     let currentAudio = null;

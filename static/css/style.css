@@ -1252,6 +1252,37 @@ button {
   color: var(--clr-green);
 }
 
+/* Botón Excluir (Feedback) */
+.rec-exclude-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.rec-card:hover .rec-exclude-btn {
+  opacity: 1;
+}
+
+.rec-exclude-btn:hover {
+  background: #ef4444;
+  transform: scale(1.15);
+}
+
 /* ================================================================
    MOOD CHIPS
    ================================================================ */
