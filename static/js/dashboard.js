@@ -370,42 +370,53 @@ const sectionObserver = new IntersectionObserver((entries) => {
 sections.forEach(s => sectionObserver.observe(s));
 
 // ─────────────────────────────────────────────────────────────
-// RECOMENDACIONES — SISTEMA AVANZADO CON MOODS
+// RECOMENDACIONES — 2 MODOS: PARA TI / RECIENTES
 // ─────────────────────────────────────────────────────────────
 
-let activeMood = 'default';
+let activeMode = 'para_ti';
 let activeQuery = '';
 
-async function loadRecommendations(mood = activeMood, query = '') {
+async function loadRecommendations(mode = activeMode, query = '') {
     const grid = document.getElementById('recommendationsGrid');
+    const contextEl = document.getElementById('contextDescription');
     grid.innerHTML = '<div class="rec-loading"><div class="loading-spinner" style="width:32px;height:32px"></div><p>Buscando canciones para ti...</p></div>';
+    if (contextEl) contextEl.textContent = '';
 
-    activeMood = mood;
+    activeMode = mode;
     activeQuery = query;
 
-    // Actualizar chip activo
+    // Actualizar tab activo
     document.querySelectorAll('.mood-chip').forEach(c => {
-        c.classList.toggle('active', c.dataset.mood === mood);
+        c.classList.toggle('active', c.dataset.mode === mode && !query);
     });
 
     try {
-        let url = `/api/recommendations?mood=${encodeURIComponent(mood)}`;
+        let url = `/api/recommendations?mode=${encodeURIComponent(mode)}`;
         if (query) url += `&query=${encodeURIComponent(query)}`;
         const data = await apiFetch(url);
+
+        // Actualizar header
+        if (data.profile_description) {
+            const el = document.getElementById('profileDescription');
+            if (el) el.textContent = '🎵 Tu perfil: ' + data.profile_description;
+        }
+        if (data.context_description && contextEl) {
+            contextEl.textContent = data.context_description;
+        }
+
         renderRecommendations(data);
     } catch (err) {
         grid.innerHTML = `<p style="color:var(--text-muted);padding:2rem">❌ Error: ${err.message}</p>`;
     }
 }
 
-// ── Mood chips ────────────────────────────────────────────────
-document.querySelectorAll('.mood-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-        const mood = chip.dataset.mood;
-        // Limpiar búsqueda al cambiar mood
+// ── Tabs de modo ─────────────────────────────────────────────
+document.querySelectorAll('[data-mode]').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const mode = tab.dataset.mode;
         const searchInput = document.getElementById('recSearchInput');
         if (searchInput) searchInput.value = '';
-        loadRecommendations(mood, '');
+        loadRecommendations(mode, '');
     });
 });
 
@@ -415,7 +426,6 @@ if (recSearchArtistBtn) {
     recSearchArtistBtn.addEventListener('click', () => {
         const query = document.getElementById('recSearchInput')?.value.trim();
         if (!query) return;
-        // Quitar activo de chips
         document.querySelectorAll('.mood-chip').forEach(c => c.classList.remove('active'));
         loadRecommendations('artista', query);
     });
@@ -432,7 +442,7 @@ if (recSearchFreeBtn) {
     });
 }
 
-// Enter en el input de búsqueda
+// Enter en el input
 const recSearchInput = document.getElementById('recSearchInput');
 if (recSearchInput) {
     recSearchInput.addEventListener('keydown', (e) => {
@@ -451,7 +461,7 @@ if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
         refreshBtn.disabled = true;
         setTimeout(() => refreshBtn.disabled = false, 5000);
-        loadRecommendations(activeMood, activeQuery);
+        loadRecommendations(activeMode, activeQuery);
     });
 }
 
@@ -459,3 +469,4 @@ if (refreshBtn) {
 // INICIO
 // ─────────────────────────────────────────────────────────────
 loadDashboard();
+

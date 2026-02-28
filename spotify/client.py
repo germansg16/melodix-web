@@ -90,6 +90,7 @@ def get_recently_played(sp: spotipy.Spotify, limit: int = 20) -> list:
             "id": track.get("id"),
             "name": track.get("name"),
             "artist": artists[0].get("name", "Desconocido"),
+            "artist_id": artists[0].get("id"),          # ← necesario para motor Recientes
             "image": album["images"][0]["url"] if album.get("images") else None,
             "played_at": item.get("played_at"),
             "spotify_url": track.get("external_urls", {}).get("spotify"),

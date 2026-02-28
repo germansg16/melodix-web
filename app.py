@@ -31,9 +31,10 @@ from spotify.client import (
     get_genre_distribution,
 )
 from ml.recommender import (
-    get_smart_recommendations,
+    get_para_ti,
+    get_recientes,
+    get_custom_search,
     describe_profile,
-    get_mood_list,
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -272,46 +273,54 @@ def api_dashboard_summary():
 @app.route("/api/recommendations")
 def api_recommendations():
     """
-    Recomendaciones inteligentes personalizadas para el usuario.
-    Acepta: ?mood=fiesta|emocional|bailar|relajado|amigos|verano|tendencias|artista|custom
-            &query=texto libre (para modos artista y custom)
+    Recomendaciones personalizadas.
+    ?mode=para_ti|recientes|artista|custom  &query=texto
     """
     sp = get_current_sp()
     if not sp:
         return jsonify({"error": "No autenticado"}), 401
 
-    mood         = request.args.get("mood", "default")
-    custom_query = request.args.get("query", "").strip()
+    mode  = request.args.get("mode", "para_ti")
+    query = request.args.get("query", "").strip()
 
     try:
-        # Datos del usuario (limit=10 para mayor precisión del perfil)
         top_artists   = get_top_artists(sp, time_range="medium_term", limit=10)
-        top_tracks    = get_top_tracks(sp,  time_range="medium_term", limit=10)
-        recent_tracks = get_recently_played(sp, limit=20)
+        top_tracks    = get_top_tracks(sp,  time_range="medium_term", limit=20)
+        recent_tracks = get_recently_played(sp, limit=50)
 
         if not top_artists:
-            return jsonify({
-                "recommendations": [],
-                "profile_description": "Escucha más música para generar recomendaciones",
-                "moods": get_mood_list(),
-            })
+            return jsonify({"recommendations": [], "profile_description": "Escucha más música para generar recomendaciones"})
 
-        profile_desc    = describe_profile(top_artists, top_tracks)
-        recommendations = get_smart_recommendations(
-            sp,
-            top_artists=top_artists,
-            top_tracks=top_tracks,
-            recent_tracks=recent_tracks,
-            mood=mood,
-            custom_query=custom_query,
-            limit=20,
-        )
+        if mode == "para_ti":
+            recs, audio_profile, audio_desc = get_para_ti(
+                sp, top_artists, top_tracks, recent_tracks, limit=20
+            )
+            profile_desc = describe_profile(top_artists, top_tracks, audio_desc)
+            context_desc = "Explorando tu universo musical"
+
+        elif mode == "recientes":
+            recs, context_desc = get_recientes(
+                sp, top_artists, top_tracks, recent_tracks, limit=20
+            )
+            profile_desc = describe_profile(top_artists, top_tracks)
+
+        elif mode in ("artista", "custom"):
+            recs = get_custom_search(sp, query, mode=mode, limit=20)
+            profile_desc = describe_profile(top_artists, top_tracks)
+            context_desc = f'Búsqueda: "{query}"' if mode == "custom" else f"Artista: {query}"
+
+        else:
+            recs, audio_profile, audio_desc = get_para_ti(
+                sp, top_artists, top_tracks, recent_tracks, limit=20
+            )
+            profile_desc = describe_profile(top_artists, top_tracks, audio_desc)
+            context_desc = "Explorando tu universo musical"
 
         return jsonify({
-            "recommendations": recommendations[:12],
+            "recommendations": recs[:12],
             "profile_description": profile_desc,
-            "moods": get_mood_list(),
-            "active_mood": mood,
+            "context_description": context_desc,
+            "mode": mode,
         })
 
     except Exception as e:
@@ -319,8 +328,10 @@ def api_recommendations():
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
+
 # ─────────────────────────────────────────────────────────────
 # PUNTO DE ENTRADA
+
 
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":

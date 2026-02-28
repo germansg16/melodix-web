@@ -209,6 +209,8 @@
                     <div>
                         <h2 class="dash-section-title">Para ti ✨</h2>
                         <p class="recommendations-subtitle" id="profileDescription">Analizando tu perfil musical...</p>
+                        <p class="recommendations-context" id="contextDescription"
+                            style="font-size:0.76rem;color:var(--clr-text-muted);margin-top:0.2rem;"></p>
                     </div>
                     <button class="btn-refresh" id="refreshRecommendations" title="Actualizar recomendaciones">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -221,16 +223,10 @@
                     </button>
                 </div>
 
-                <!-- MOOD CHIPS -->
-                <div class="mood-bar" id="moodBar">
-                    <button class="mood-chip active" data-mood="default">🎵 Para ti</button>
-                    <button class="mood-chip" data-mood="fiesta">🎉 Fiesta</button>
-                    <button class="mood-chip" data-mood="emocional">😢 Emocional</button>
-                    <button class="mood-chip" data-mood="bailar">🕺 Pa' bailar</button>
-                    <button class="mood-chip" data-mood="relajado">😌 Relajado</button>
-                    <button class="mood-chip" data-mood="amigos">👯 Con amigos</button>
-                    <button class="mood-chip" data-mood="verano">☀️ Verano</button>
-                    <button class="mood-chip" data-mood="tendencias">🔥 Tendencias</button>
+                <!-- 2 TABS: Para ti / Recientes -->
+                <div class="mood-bar" id="modeBar">
+                    <button class="mood-chip active" data-mode="para_ti">🎵 Para ti</button>
+                    <button class="mood-chip" data-mode="recientes">🕐 Recientes</button>
                 </div>
 
                 <!-- BUSCADOR LIBRE -->
@@ -256,6 +252,7 @@
                     <!-- Se rellena con JS -->
                 </div>
             </section>
+
 
         </div><!-- /dashboard-content -->
     </main>
