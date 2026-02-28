@@ -3,172 +3,116 @@ ml/recommender.py
 -----------------
 Motor de recomendaciones inteligente de Melodix.
 
-Totalmente personalizado: los géneros del usuario son always la base.
-El mood solo ajusta el contexto — no cambia el perfil musical.
+ESTRATEGIA PRINCIPAL: Búsqueda por ARTISTAS del usuario + mood keywords.
+  → `artist:"Yung Beef" triste` encuentra canciones tristes de Yung Beef
+  → `artist:"Mda" fiesta` encuentra sus canciones de fiesta
+  → Mucho más preciso que genre+keyword que no filtra semánticamente
 
-Soporta los moods:
-  default   → Basado en tus géneros + historial reciente
-  fiesta    → Tus géneros + vibe festivo
-  emocional → Tus géneros + canciones lentas/emocionales
-  bailar    → Tus géneros + más energético
-  relajado  → Tus géneros + chill / acústico
-  amigos    → Tus géneros + good vibes
-  verano    → Tus géneros + playa / verano
-  tendencias→ Tus géneros + lanzamientos recientes
-  artista   → Artista específico (query libre)
-  custom    → Búsqueda libre del usuario
+También añade offset aleatorio para variar resultados en cada llamada.
 """
 
+import random
 import spotipy
 
 # ─────────────────────────────────────────────────────────────
-# CONFIGURACIÓN DE MOODS
+# KEYWORDS POR MOOD
 # ─────────────────────────────────────────────────────────────
 
-MOOD_CONFIG = {
-    "default": {
-        "label": "Para ti",
-        "emoji": "🎵",
-        "extra_terms": [],           # Sin modificación, máxima personalización
-        "use_recent": True,          # Usa historial reciente para ajustar
-    },
-    "fiesta": {
-        "label": "Fiesta",
-        "emoji": "🎉",
-        "extra_terms": ["party", "fiesta"],
-        "use_recent": False,
-    },
-    "emocional": {
-        "label": "Emocional",
-        "emoji": "😢",
-        "extra_terms": ["sad", "emotional", "triste"],
-        "use_recent": False,
-    },
-    "bailar": {
-        "label": "Pa' bailar",
-        "emoji": "🕺",
-        "extra_terms": ["dance", "bailar"],
-        "use_recent": False,
-    },
-    "relajado": {
-        "label": "Relajado",
-        "emoji": "😌",
-        "extra_terms": ["chill", "relax", "tranquilo"],
-        "use_recent": False,
-    },
-    "amigos": {
-        "label": "Con amigos",
-        "emoji": "👯",
-        "extra_terms": ["good vibes", "fun"],
-        "use_recent": False,
-    },
-    "verano": {
-        "label": "Verano",
-        "emoji": "☀️",
-        "extra_terms": ["verano", "summer", "playa"],
-        "use_recent": False,
-    },
-    "tendencias": {
-        "label": "Tendencias",
-        "emoji": "🔥",
-        "extra_terms": ["new", "2024", "2025"],
-        "use_recent": False,
-    },
-    "artista": {
-        "label": "Por artista",
-        "emoji": "🎤",
-        "extra_terms": [],
-        "use_recent": False,
-        "artist_mode": True,         # Usa query directamente como artista
-    },
-    "custom": {
-        "label": "Búsqueda",
-        "emoji": "🔍",
-        "extra_terms": [],
-        "use_recent": False,
-        "free_search": True,         # Búsqueda completamente libre
-    },
+MOOD_KEYWORDS = {
+    "default":    [],
+    "fiesta":     ["fiesta", "party", "beber", "noche"],
+    "emocional":  ["triste", "sad", "llorar", "dolor", "solo", "lento"],
+    "bailar":     ["baile", "pista", "perrear", "twerk", "boogaloo"],
+    "relajado":   ["chill", "tranquilo", "relax", "slow"],
+    "amigos":     ["amigos", "friends", "squad", "crew"],
+    "verano":     ["verano", "playa", "summer", "sol", "calor"],
+    "tendencias": ["2024", "2025", "new", "nuevo"],
+    "artista":    [],   # se maneja como caso especial
+    "custom":     [],   # búsqueda libre
+}
+
+MOOD_LABELS = {
+    "default":    ("🎵", "Para ti"),
+    "fiesta":     ("🎉", "Fiesta"),
+    "emocional":  ("😢", "Emocional"),
+    "bailar":     ("🕺", "Pa' bailar"),
+    "relajado":   ("😌", "Relajado"),
+    "amigos":     ("👯", "Con amigos"),
+    "verano":     ("☀️", "Verano"),
+    "tendencias": ("🔥", "Tendencias"),
+    "artista":    ("🎤", "Por artista"),
+    "custom":     ("🔍", "Búsqueda"),
 }
 
 
 # ─────────────────────────────────────────────────────────────
-# UTILITIES
+# UTILIDADES
 # ─────────────────────────────────────────────────────────────
 
-def _extract_user_genres(top_artists: list, max_genres: int = 5) -> list[str]:
-    """
-    Extrae los géneros principales del usuario de sus top artists.
-    Devuelve los más frecuentes primero.
-    """
-    genre_count: dict[str, int] = {}
-    for artist in top_artists:
-        for genre in artist.get("genres", []):
-            genre_count[genre] = genre_count.get(genre, 0) + 1
-
-    return sorted(genre_count, key=genre_count.get, reverse=True)[:max_genres]
-
-
-def _extract_known_ids(top_tracks: list, recent_tracks: list) -> set[str]:
-    """IDs de canciones que el usuario ya conoce (no recomendar estas)."""
+def _known_ids(top_tracks: list, recent_tracks: list) -> set:
     ids = set()
     for t in top_tracks:
-        if t.get("id"):
-            ids.add(t["id"])
+        if t.get("id"): ids.add(t["id"])
     for t in recent_tracks:
-        if t.get("id"):
-            ids.add(t["id"])
+        if t.get("id"): ids.add(t["id"])
     return ids
 
 
-def _extract_recent_genres(recent_tracks: list) -> list[str]:
-    """
-    Detecta los géneros del historial reciente del usuario
-    para tender hacia lo que está escuchando ahora.
-    """
-    # El historial reciente contiene info del artista, pero no géneros directamente.
-    # Usamos los nombres de artistas para contexto.
-    artists = []
+def _top_genres(top_artists: list, n: int = 4) -> list:
+    counts: dict[str, int] = {}
+    for a in top_artists:
+        for g in a.get("genres", []):
+            counts[g] = counts.get(g, 0) + 1
+    return sorted(counts, key=counts.get, reverse=True)[:n]
+
+
+def _top_artist_names(top_artists: list, n: int = 5) -> list:
+    return [a["name"] for a in top_artists[:n] if a.get("name")]
+
+
+def _recent_artist_names(recent_tracks: list, n: int = 3) -> list:
+    seen, names = set(), []
     for t in recent_tracks:
-        artist = t.get("artist", "")
-        if artist and artist not in artists:
-            artists.append(artist)
-    return artists[:3]
+        name = t.get("artist", "")
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+        if len(names) >= n:
+            break
+    return names
 
 
-def _search_tracks(
-    sp: spotipy.Spotify,
-    query: str,
-    known_ids: set[str],
-    seen_ids: set[str],
-    limit: int = 10,
-) -> list[dict]:
-    """
-    Ejecuta una búsqueda y devuelve tracks no conocidos por el usuario.
-    """
+def _format_track(track: dict, explanation: str) -> dict:
+    album   = track.get("album", {})
+    artists = track.get("artists", [{}])
+    return {
+        "id":          track.get("id"),
+        "name":        track.get("name", ""),
+        "artist":      artists[0].get("name", "") if artists else "",
+        "album":       album.get("name", ""),
+        "image":       album["images"][0]["url"] if album.get("images") else None,
+        "preview_url": track.get("preview_url"),
+        "spotify_url": track.get("external_urls", {}).get("spotify"),
+        "popularity":  track.get("popularity", 0),
+        "explanation": explanation,
+    }
+
+
+def _search(sp, query: str, known: set, seen: set, limit: int = 8, offset: int = 0) -> list:
+    """Ejecuta una búsqueda y devuelve tracks filtrados."""
     try:
-        results = sp.search(q=query, type="track", limit=limit)
-        tracks = results.get("tracks", {}).get("items", [])
+        res = sp.search(q=query, type="track", limit=limit, offset=offset)
+        tracks = res.get("tracks", {}).get("items", [])
     except Exception:
         return []
 
     out = []
-    for track in tracks:
-        tid = track.get("id")
-        if not tid or tid in known_ids or tid in seen_ids:
+    for t in tracks:
+        tid = t.get("id")
+        if not tid or tid in known or tid in seen:
             continue
-        seen_ids.add(tid)
-        album   = track.get("album", {})
-        artists = track.get("artists", [{}])
-        out.append({
-            "id": tid,
-            "name": track.get("name", ""),
-            "artist": artists[0].get("name", "") if artists else "",
-            "album": album.get("name", ""),
-            "image": album["images"][0]["url"] if album.get("images") else None,
-            "preview_url": track.get("preview_url"),
-            "spotify_url": track.get("external_urls", {}).get("spotify"),
-            "popularity": track.get("popularity", 0),
-        })
+        seen.add(tid)
+        out.append(t)
     return out
 
 
@@ -184,130 +128,108 @@ def get_smart_recommendations(
     mood: str = "default",
     custom_query: str = "",
     limit: int = 20,
-) -> list[dict]:
+) -> list:
     """
-    Genera recomendaciones personalizadas para el usuario.
+    Genera recomendaciones personalizadas ajustadas al mood elegido.
 
-    La base siempre son los géneros reales del usuario.
-    El mood ajusta el contexto (festivo, relajado, etc.) sin perder
-    la esencia del perfil musical.
-
-    Args:
-        sp: cliente Spotify autenticado
-        top_artists: lista de artistas favoritos del usuario
-        top_tracks: lista de canciones favoritas del usuario
-        recent_tracks: historial reciente (últimas 20 canciones)
-        mood: uno de los moods definidos en MOOD_CONFIG
-        custom_query: texto libre para modos artista/custom
-        limit: número máximo de resultados
-
-    Returns:
-        Lista de dicts con info de la canción + explanation
+    Estrategia por prioridad:
+      1. Artistas del usuario + keyword del mood  (principal)
+      2. Géneros del usuario + keyword del mood   (complementario)
+      3. Historial reciente como semilla          (solo en modo default)
     """
-    config     = MOOD_CONFIG.get(mood, MOOD_CONFIG["default"])
-    known_ids  = _extract_known_ids(top_tracks, recent_tracks)
-    seen_ids   = set()
-    results    = []
+    known    = _known_ids(top_tracks, recent_tracks)
+    seen     = set()
+    results  = []
+
+    # Offset aleatorio para variar resultados entre llamadas
+    base_offset = random.randint(0, 15)
 
     # ── Modo artista específico ──────────────────────────────
-    if config.get("artist_mode") and custom_query:
-        artist_name = custom_query.strip()
-        tracks = _search_tracks(
-            sp,
-            query=f'artist:"{artist_name}"',
-            known_ids=set(),     # En modo artista, SÍ mostramos sus canciones aunque las conozca
-            seen_ids=seen_ids,
-            limit=limit,
-        )
-        for t in tracks:
-            t["explanation"] = f"De {artist_name}"
-        return sorted(tracks, key=lambda x: x.get("popularity", 0), reverse=True)[:limit]
+    if mood == "artista" and custom_query:
+        tracks_raw = _search(sp, f'artist:"{custom_query.strip()}"', set(), seen, limit=limit, offset=0)
+        for t in tracks_raw:
+            results.append(_format_track(t, f"De {custom_query}"))
+        return sorted(results, key=lambda x: x["popularity"], reverse=True)[:limit]
 
     # ── Modo búsqueda libre ──────────────────────────────────
-    if config.get("free_search") and custom_query:
-        tracks = _search_tracks(
-            sp,
-            query=custom_query.strip(),
-            known_ids=known_ids,
-            seen_ids=seen_ids,
-            limit=limit,
-        )
-        for t in tracks:
-            t["explanation"] = f"Búsqueda: {custom_query}"
-        return sorted(tracks, key=lambda x: x.get("popularity", 0), reverse=True)[:limit]
+    if mood == "custom" and custom_query:
+        tracks_raw = _search(sp, custom_query.strip(), known, seen, limit=limit, offset=0)
+        for t in tracks_raw:
+            results.append(_format_track(t, f'Búsqueda: "{custom_query}"'))
+        return sorted(results, key=lambda x: x["popularity"], reverse=True)[:limit]
 
-    # ── Extraer géneros del usuario ─────────────────────────
-    user_genres    = _extract_user_genres(top_artists, max_genres=4)
-    extra_terms    = config.get("extra_terms", [])
-    use_recent     = config.get("use_recent", False)
+    # ── Configuración del mood ───────────────────────────────
+    keywords = MOOD_KEYWORDS.get(mood, [])
+    label_emoji, label_text = MOOD_LABELS.get(mood, ("🎵", mood))
 
-    # Si el usuario no tiene géneros definidos, usamos artistas directamente
-    if not user_genres:
-        artist_names = [a["name"] for a in top_artists[:3] if a.get("name")]
-        user_genres  = artist_names  # Búsqueda por nombre de artista como fallback
+    artist_names = _top_artist_names(top_artists, n=5)
+    genres       = _top_genres(top_artists, n=4)
 
-    # ── Búsqueda por género + mood ───────────────────────────
-    for genre in user_genres:
-        if len(results) >= limit:
-            break
+    # ── Paso 1: artista del usuario + keyword mood ───────────
+    # Esta es la clave — busca dentro del universo musical del usuario
+    if keywords:
+        # Mezclar artistas para no siempre mostrar el mismo primero
+        artists_shuffled = artist_names.copy()
+        random.shuffle(artists_shuffled)
 
-        # Query base: el género exacto del usuario
-        base_query = f'genre:"{genre}"'
-
-        # Con términos extra del mood
-        if extra_terms:
-            # Intentamos con el término extra
-            extra = extra_terms[0]
-            query_with_mood = f'{base_query} {extra}'
-            tracks = _search_tracks(sp, query_with_mood, known_ids, seen_ids, limit=8)
-
-            for t in tracks:
-                t["explanation"] = f"{genre} · {config['label']}"
-            results.extend(tracks)
-
-        # También sin términos extra (para completar si hay pocos resultados)
-        if len(results) < limit:
-            tracks_base = _search_tracks(sp, base_query, known_ids, seen_ids, limit=8)
-            for t in tracks_base:
-                t["explanation"] = f"Basado en {genre}"
-            results.extend(tracks_base)
-
-    # ── Boost por historial reciente (solo en modo default) ──
-    if use_recent and len(results) < limit:
-        recent_artists = _extract_recent_genres(recent_tracks)
-        for artist_name in recent_artists:
+        for artist in artists_shuffled:
             if len(results) >= limit:
                 break
-            tracks = _search_tracks(
-                sp,
-                query=f'artist:"{artist_name}"',
-                known_ids=known_ids,
-                seen_ids=seen_ids,
-                limit=5,
-            )
-            for t in tracks:
-                t["explanation"] = f"Similar a {artist_name}"
-            results.extend(tracks)
+            # Probar cada keyword con el artista
+            kw = random.choice(keywords)
+            query = f'artist:"{artist}" {kw}'
+            raw = _search(sp, query, known, seen, limit=6, offset=base_offset)
+            for t in raw:
+                results.append(_format_track(t, f"{artist} · {label_text}"))
 
-    # ── Fallback: búsqueda por artistas favoritos ────────────
+    # ── Paso 2: género del usuario + keyword mood ────────────
+    if len(results) < limit and keywords:
+        genres_shuffled = genres.copy()
+        random.shuffle(genres_shuffled)
+        for genre in genres_shuffled:
+            if len(results) >= limit:
+                break
+            kw = random.choice(keywords)
+            raw = _search(sp, f'genre:"{genre}" {kw}', known, seen, limit=6, offset=base_offset)
+            for t in raw:
+                results.append(_format_track(t, f"{genre} · {label_text}"))
+
+    # ── Paso 3: sólo géneros (sin keyword) como relleno ─────
+    if len(results) < limit:
+        genres_shuffled = genres.copy()
+        random.shuffle(genres_shuffled)
+        for genre in genres_shuffled:
+            if len(results) >= limit:
+                break
+            raw = _search(sp, f'genre:"{genre}"', known, seen, limit=6, offset=base_offset)
+            for t in raw:
+                results.append(_format_track(t, f"Basado en {genre}"))
+
+    # ── Paso 4 (default): historial reciente ─────────────────
+    if mood == "default" and len(results) < limit:
+        recent_artists = _recent_artist_names(recent_tracks, n=3)
+        random.shuffle(recent_artists)
+        for artist in recent_artists:
+            if len(results) >= limit:
+                break
+            if artist in artist_names:
+                continue  # ya lo usamos arriba
+            raw = _search(sp, f'artist:"{artist}"', known, seen, limit=5, offset=base_offset)
+            for t in raw:
+                results.append(_format_track(t, f"Similar a {artist}"))
+
+    # ── Fallback: artistas directamente ─────────────────────
     if len(results) < 8:
-        top_artist_names = [a["name"] for a in top_artists[:2] if a.get("name")]
-        for artist_name in top_artist_names:
+        for artist in artist_names[:3]:
             if len(results) >= limit:
                 break
-            tracks = _search_tracks(
-                sp,
-                query=f'artist:"{artist_name}"',
-                known_ids=known_ids,
-                seen_ids=seen_ids,
-                limit=6,
-            )
-            for t in tracks:
-                t["explanation"] = f"Más de {artist_name}"
-            results.extend(tracks)
+            raw = _search(sp, f'artist:"{artist}"', known, seen, limit=5, offset=base_offset)
+            for t in raw:
+                results.append(_format_track(t, f"Más de {artist}"))
 
-    # ── Ordenar por popularidad y limitar ───────────────────
-    results.sort(key=lambda x: x.get("popularity", 0), reverse=True)
+    # ── Resultado final ──────────────────────────────────────
+    # Mezclamos un poco para no ordenar solo por popularidad (más variedad)
+    results.sort(key=lambda x: x["popularity"] + random.randint(-5, 5), reverse=True)
     return results[:limit]
 
 
@@ -316,19 +238,15 @@ def get_smart_recommendations(
 # ─────────────────────────────────────────────────────────────
 
 def describe_profile(top_artists: list, top_tracks: list) -> str:
-    """
-    Genera una descripción del perfil musical del usuario
-    basada en sus artistas y géneros favoritos.
-    """
     if not top_artists:
         return "Perfil musical en construcción"
 
-    genre_count: dict[str, int] = {}
-    for artist in top_artists:
-        for genre in artist.get("genres", []):
-            genre_count[genre] = genre_count.get(genre, 0) + 1
+    counts: dict[str, int] = {}
+    for a in top_artists:
+        for g in a.get("genres", []):
+            counts[g] = counts.get(g, 0) + 1
 
-    top_genres   = sorted(genre_count, key=genre_count.get, reverse=True)[:2]
+    top_genres   = sorted(counts, key=counts.get, reverse=True)[:2]
     artist_names = [a["name"] for a in top_artists[:2] if a.get("name")]
 
     parts = []
@@ -336,15 +254,11 @@ def describe_profile(top_artists: list, top_tracks: list) -> str:
         parts.append(f"Fan de {', '.join(artist_names)}")
     if top_genres:
         parts.append(" · ".join(top_genres))
-
     return " · ".join(parts) if parts else "Perfil musical variado"
 
 
-def get_mood_list() -> list[dict]:
-    """
-    Devuelve la lista de moods disponibles para el frontend.
-    """
+def get_mood_list() -> list:
     return [
-        {"id": mid, "label": cfg["label"], "emoji": cfg["emoji"]}
-        for mid, cfg in MOOD_CONFIG.items()
+        {"id": mid, "emoji": MOOD_LABELS[mid][0], "label": MOOD_LABELS[mid][1]}
+        for mid in MOOD_LABELS
     ]
