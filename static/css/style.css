@@ -1400,21 +1400,34 @@ button {
    RESPONSIVE
    ================================================================ */
 
+/* Prevenir scroll horizontal global — crítico para móvil */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Dashboard body no puede desbordar */
+.dashboard-body {
+  overflow-x: hidden;
+}
+
 /* Overlay oscuro que cubre el contenido cuando el sidebar está abierto en móvil */
 .sidebar-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   z-index: 190;
   backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .sidebar-overlay.visible {
   display: block;
 }
 
-/* ---- TABLET ---- */
+/* ---- TABLET ≤1100px ---- */
 @media (max-width: 1100px) {
   .overview-grid {
     grid-template-columns: 1fr;
@@ -1425,10 +1438,10 @@ button {
   }
 }
 
-/* ---- TABLET / MÓVIL (sidebar oculto con hamburguesa) ---- */
+/* ---- TABLET/MÓVIL ≤860px (sidebar como overlay) ---- */
 @media (max-width: 860px) {
 
-  /* Landing hero */
+  /* Landing: hero en columna */
   .hero {
     flex-direction: column;
     padding-top: 7rem;
@@ -1436,139 +1449,192 @@ button {
   }
 
   .hero-title {
-    font-size: clamp(2rem, 8vw, 3.5rem);
+    font-size: clamp(1.8rem, 7vw, 3.2rem);
   }
 
   .hero-visual {
     display: none;
   }
 
-  /* Géneros: pasa a 1 columna */
+  /* Géneros: 1 columna */
   .genres-layout {
     grid-template-columns: 1fr;
   }
 
-  /* Sidebar se esconde fuera de pantalla */
+  /* Sidebar escondido fuera de pantalla */
   .sidebar {
     transform: translateX(-100%);
   }
 
   .sidebar.open {
     transform: translateX(0);
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 6px 0 32px rgba(0, 0, 0, 0.6);
   }
 
-  /* El contenido ocupa todo el ancho */
+  /* Contenido a ancho completo */
   .dashboard-main {
     margin-left: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
-  /* El botón hamburguesa se hace visible */
+  /* Botón hamburguesa visible */
   .sidebar-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0.4rem;
     color: var(--clr-text);
-    ;
   }
 
-  /* Topbar: saludo más corto */
+  /* Saludo corto en topbar */
   .topbar-greeting {
     font-size: 0.8rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 130px;
   }
 
-  /* Recomendaciones: 2 columnas en tablet */
+  /* Recomendaciones: 2 col en tablet */
   .recommendations-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 }
 
-/* ---- MÓVIL PEQUEÑO ---- */
+/* ---- MÓVIL ≤600px ---- */
 @media (max-width: 600px) {
 
   /* Topbar compacta */
   .topbar {
-    padding: 0.7rem 0.9rem;
-    gap: 0.6rem;
+    padding: 0.65rem 0.8rem;
+    gap: 0.5rem;
   }
 
-  /* Ocultar el selector de período en la barra superior para no saturar */
+  /* Ocultar selector de período */
   .time-selector {
     display: none;
   }
 
-  /* Dashboard padding reducido */
+  /* Padding reducido */
   .dashboard-content {
-    padding: 1rem 0.85rem;
+    padding: 0.9rem 0.75rem;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  /* Overview en 1 columna */
+  .overview-grid {
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+
+  /* Profile card compacta horizontal */
+  .profile-card {
+    flex-direction: row;
+    align-items: center;
+    min-width: 0;
+    /* CRÍTICO: eliminar min-width fijo */
+    width: 100%;
+    padding: 1rem;
+    gap: 0.9rem;
+  }
+
+  .profile-avatar {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+  }
+
+  .profile-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .profile-name {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .profile-badges {
+    flex-wrap: wrap;
   }
 
   /* Stat cards en 2 columnas */
   .stat-cards {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.6rem;
+    width: 100%;
   }
 
   .stat-card {
-    padding: 0.9rem 0.7rem;
+    padding: 0.8rem 0.5rem;
+    min-width: 0;
+    /* Evitar desbordamiento */
+    width: 100%;
   }
 
   .stat-card-value {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  /* Profile card en columna */
-  .overview-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-card {
-    flex-direction: column;
-    text-align: center;
-    min-width: unset;
-    padding: 1.2rem;
-  }
-
-  .profile-badges {
-    justify-content: center;
+  .stat-card-icon {
+    font-size: 1.2rem;
+    margin-bottom: 0.3rem;
   }
 
   /* Artistas: 2 columnas */
   .artists-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.7rem;
+    gap: 0.6rem;
   }
 
-  /* Tracks: ocultar barra de popularidad */
-  .track-pop {
+  /* Tracks: ocultar barra de popularidad + link */
+  .track-pop,
+  .track-link {
     display: none;
   }
 
-  /* Recomendaciones: forzar 2 columnas bien pequeñas */
-  .recommendations-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.7rem;
+  .track-num {
+    display: none;
   }
 
-  .rec-card {
-    font-size: 0.82rem;
+  /* Historial: ocultar timestamp */
+  .recent-time {
+    display: none;
+  }
+
+  /* Recomendaciones: 2 col */
+  .recommendations-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
   }
 
   .rec-name {
-    font-size: 0.78rem;
+    font-size: 0.76rem;
   }
 
   .rec-artist {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
   }
 
-  /* Barra de búsqueda en columna */
+  .rec-info {
+    padding: 0.6rem 0.7rem 0.4rem;
+  }
+
+  .rec-actions {
+    padding: 0.4rem 0.7rem 0.6rem;
+  }
+
+  /* Buscador en columna */
   .rec-search-bar {
     flex-wrap: wrap;
+    gap: 0.4rem;
   }
 
   .rec-search-input-wrap {
@@ -1579,26 +1645,40 @@ button {
   .rec-search-btn {
     flex: 1;
     justify-content: center;
+    text-align: center;
   }
 
-  /* Cabecera de recomendaciones: ocultar botón refresh y poner en columna */
+  /* Cabecera de recomendaciones en columna */
   .recommendations-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
-  /* Sección: menos margen */
+  .btn-refresh {
+    align-self: flex-start;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.8rem;
+  }
+
+  /* Secciones: menos margen */
   .dash-section {
-    margin-bottom: 2rem;
+    margin-bottom: 1.8rem;
   }
 
   .dash-section-title {
-    font-size: 1.1rem;
+    font-size: 1rem;
+    margin-bottom: 0.9rem;
   }
 
-  /* Historial reciente: ocultar timestamp */
-  .recent-time {
-    display: none;
+  /* Géneros: chips más pequeños */
+  .genre-item {
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Mood chips: más pequeños */
+  .mood-chip {
+    font-size: 0.72rem;
+    padding: 0.32rem 0.7rem;
   }
 }
