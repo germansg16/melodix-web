@@ -374,12 +374,7 @@ async function reloadWithTimeRange(timeRange) {
 // EVENT LISTENERS
 // ─────────────────────────────────────────────────────────────
 
-// Sidebar toggle (móvil)
-const sidebarToggle = document.getElementById('sidebarToggle');
-const sidebar = document.getElementById('sidebar');
-if (sidebarToggle && sidebar) {
-    sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
-}
+// Sidebar toggle (móvil) — gestionado por initSidebarToggle() al final del archivo
 
 // Botones de período de tiempo
 document.querySelectorAll('.time-btn').forEach(btn => {
@@ -389,6 +384,7 @@ document.querySelectorAll('.time-btn').forEach(btn => {
         reloadWithTimeRange(btn.dataset.range);
     });
 });
+
 
 // Sidebar links — marcar activo según scroll
 const sections = document.querySelectorAll('.dash-section');
