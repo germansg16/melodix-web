@@ -508,3 +508,41 @@ if (refreshBtn) {
 // ─────────────────────────────────────────────────────────────
 loadDashboard();
 
+// ─────────────────────────────────────────────────────────────
+// SIDEBAR TOGGLE (MÓVIL / HAMBURGUESA)
+// ─────────────────────────────────────────────────────────────
+(function initSidebarToggle() {
+    const sidebar = document.getElementById('sidebar');
+    const toggle = document.getElementById('sidebarToggle');
+    const overlay = document.getElementById('sidebarOverlay');
+    const sidebarLinks = document.querySelectorAll('.sidebar-link');
+
+    function openSidebar() {
+        sidebar?.classList.add('open');
+        overlay?.classList.add('visible');
+        document.body.style.overflow = 'hidden'; // Evitar scroll de fondo
+    }
+
+    function closeSidebar() {
+        sidebar?.classList.remove('open');
+        overlay?.classList.remove('visible');
+        document.body.style.overflow = '';
+    }
+
+    // Abrir/cerrar al pulsar el botón hamburguesa
+    toggle?.addEventListener('click', () => {
+        sidebar?.classList.contains('open') ? closeSidebar() : openSidebar();
+    });
+
+    // Cerrar al pulsar el overlay
+    overlay?.addEventListener('click', closeSidebar);
+
+    // Cerrar al pulsar un enlace de nav en móvil
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 860) closeSidebar();
+        });
+    });
+})();
+
+

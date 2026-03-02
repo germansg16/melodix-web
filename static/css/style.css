@@ -1400,7 +1400,21 @@ button {
    RESPONSIVE
    ================================================================ */
 
+/* Overlay oscuro que cubre el contenido cuando el sidebar está abierto en móvil */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 190;
+  backdrop-filter: blur(2px);
+}
 
+.sidebar-overlay.visible {
+  display: block;
+}
+
+/* ---- TABLET ---- */
 @media (max-width: 1100px) {
   .overview-grid {
     grid-template-columns: 1fr;
@@ -1411,51 +1425,180 @@ button {
   }
 }
 
+/* ---- TABLET / MÓVIL (sidebar oculto con hamburguesa) ---- */
 @media (max-width: 860px) {
+
+  /* Landing hero */
   .hero {
     flex-direction: column;
     padding-top: 7rem;
+    text-align: center;
+  }
+
+  .hero-title {
+    font-size: clamp(2rem, 8vw, 3.5rem);
   }
 
   .hero-visual {
     display: none;
   }
 
+  /* Géneros: pasa a 1 columna */
   .genres-layout {
     grid-template-columns: 1fr;
   }
 
+  /* Sidebar se esconde fuera de pantalla */
   .sidebar {
     transform: translateX(-100%);
   }
 
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
   }
 
+  /* El contenido ocupa todo el ancho */
   .dashboard-main {
     margin-left: 0;
   }
 
+  /* El botón hamburguesa se hace visible */
   .sidebar-toggle {
     display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    color: var(--clr-text);
+    ;
+  }
+
+  /* Topbar: saludo más corto */
+  .topbar-greeting {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+
+  /* Recomendaciones: 2 columnas en tablet */
+  .recommendations-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
 
+/* ---- MÓVIL PEQUEÑO ---- */
 @media (max-width: 600px) {
+
+  /* Topbar compacta */
+  .topbar {
+    padding: 0.7rem 0.9rem;
+    gap: 0.6rem;
+  }
+
+  /* Ocultar el selector de período en la barra superior para no saturar */
+  .time-selector {
+    display: none;
+  }
+
+  /* Dashboard padding reducido */
+  .dashboard-content {
+    padding: 1rem 0.85rem;
+  }
+
+  /* Stat cards en 2 columnas */
   .stat-cards {
     grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
   }
 
-  .topbar {
-    padding: 0.8rem 1rem;
+  .stat-card {
+    padding: 0.9rem 0.7rem;
   }
 
-  .dashboard-content {
-    padding: 1rem;
+  .stat-card-value {
+    font-size: 0.82rem;
   }
 
-  .time-selector {
+  /* Profile card en columna */
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-card {
+    flex-direction: column;
+    text-align: center;
+    min-width: unset;
+    padding: 1.2rem;
+  }
+
+  .profile-badges {
+    justify-content: center;
+  }
+
+  /* Artistas: 2 columnas */
+  .artists-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.7rem;
+  }
+
+  /* Tracks: ocultar barra de popularidad */
+  .track-pop {
+    display: none;
+  }
+
+  /* Recomendaciones: forzar 2 columnas bien pequeñas */
+  .recommendations-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.7rem;
+  }
+
+  .rec-card {
+    font-size: 0.82rem;
+  }
+
+  .rec-name {
+    font-size: 0.78rem;
+  }
+
+  .rec-artist {
+    font-size: 0.7rem;
+  }
+
+  /* Barra de búsqueda en columna */
+  .rec-search-bar {
+    flex-wrap: wrap;
+  }
+
+  .rec-search-input-wrap {
+    width: 100%;
+    flex: unset;
+  }
+
+  .rec-search-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Cabecera de recomendaciones: ocultar botón refresh y poner en columna */
+  .recommendations-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  /* Sección: menos margen */
+  .dash-section {
+    margin-bottom: 2rem;
+  }
+
+  .dash-section-title {
+    font-size: 1.1rem;
+  }
+
+  /* Historial reciente: ocultar timestamp */
+  .recent-time {
     display: none;
   }
 }
