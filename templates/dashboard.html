@@ -87,7 +87,7 @@
         </div>
     </aside>
 
-    <!-- OVERLAY para cerrar el sidebar en móvil -->
+    <!-- OVERLAY para cerrar el sidebar en móvil (z-index alto para ser siempre clickable) -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- CONTENIDO PRINCIPAL -->
@@ -117,6 +117,13 @@
                 <img src="" alt="Avatar" class="user-avatar" id="userAvatar" />
             </div>
         </header>
+
+        <!-- SELECTOR DE TIEMPO PARA MÓVIL (visible solo en pantallas pequeñas) -->
+        <div class="time-selector-mobile">
+            <button class="time-btn active" data-range="short_term">4 semanas</button>
+            <button class="time-btn" data-range="medium_term">6 meses</button>
+            <button class="time-btn" data-range="long_term">Siempre</button>
+        </div>
 
         <!-- LOADING STATE -->
         <div class="loading-screen" id="loadingScreen">

@@ -1412,13 +1412,18 @@ body {
   overflow-x: hidden;
 }
 
-/* Overlay oscuro que cubre el contenido cuando el sidebar está abierto en móvil */
+/* Barra de tiempo única para móvil (oculta en desktop) */
+.time-selector-mobile {
+  display: none;
+}
+
+/* Overlay oscuro — z-index 195 para estar siempre encima del contenido */
 .sidebar-overlay {
   display: none;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  z-index: 190;
+  z-index: 195;
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }
@@ -1426,6 +1431,7 @@ body {
 .sidebar-overlay.visible {
   display: block;
 }
+
 
 /* ---- TABLET ≤1100px ---- */
 @media (max-width: 1100px) {
@@ -1440,6 +1446,46 @@ body {
 
 /* ---- TABLET/MÓVIL ≤860px (sidebar como overlay) ---- */
 @media (max-width: 860px) {
+
+  /* Ocultar selector de tiempo de la topbar */
+  .time-selector {
+    display: none;
+  }
+
+  /* Mostrar la barra de tiempo exclusiva de móvil */
+  .time-selector-mobile {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    background: var(--clr-bg-2);
+    border-bottom: 1px solid var(--clr-border);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .time-selector-mobile::-webkit-scrollbar {
+    display: none;
+  }
+
+  .time-selector-mobile .time-btn {
+    flex-shrink: 0;
+    padding: 0.4rem 1rem;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    color: var(--clr-text-muted);
+    transition: var(--transition);
+  }
+
+  .time-selector-mobile .time-btn.active {
+    background: var(--clr-green);
+    border-color: var(--clr-green);
+    color: #000;
+    font-weight: 700;
+  }
 
   /* Landing: hero en columna */
   .hero {
