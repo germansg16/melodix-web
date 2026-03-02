@@ -1637,9 +1637,42 @@ body {
   }
 
   /* Artistas: 2 columnas */
+  /* Artistas: 3 columnas, tamaño reducido */
   .artists-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+  }
+
+  .artist-info {
+    padding: 0.4rem;
+  }
+
+  .artist-name {
+    font-size: 0.75rem;
+  }
+
+  .artist-rank {
+    font-size: 0.65rem;
+  }
+
+  /* Tracks: diseño compacto */
+  .track-item {
+    padding: 0.5rem 0.6rem;
     gap: 0.6rem;
+  }
+
+  .track-img,
+  .track-img-placeholder {
+    width: 36px;
+    height: 36px;
+  }
+
+  .track-name {
+    font-size: 0.85rem;
+  }
+
+  .track-artist {
+    font-size: 0.7rem;
   }
 
   /* Tracks: ocultar barra de popularidad + link */
